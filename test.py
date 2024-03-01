@@ -1,55 +1,21 @@
+import matplotlib.pyplot as plt
+import timeit
 import random
 import math
-import timeit
-import matplotlib.pyplot as plt
+
 
 def orientation(p, q, r):
     # Determine the orientation of the triplet (p, q, r).
     val = (q[1] - p[1]) * (r[0] - q[0]) - (q[0] - p[0]) * (r[1] - q[1])
     if val == 0:
         return 0  # Collinear
-    if val > 0:
-        return 1
+    elif val > 0:
+        return 1  # Clockwise
     else:
-        return 2  # Clockwise or counterclockwise
+        return 2  # Counterclockwise
 
 
-def jarvismarch(inputSet):
-    '''
-    Returns the list of points that lie on the convex hull (jarvis march algorithm)
-            Parameters:
-                    inputSet (list): a list of 2D points
-
-            Returns:
-                    outputSet (list): a list of 2D points
-    '''
-    # Determine the orientation of the triplet (p, q, r).
-
-    # Check if there are at least 3 points
-    if len(inputSet) < 3:
-        return inputSet
-    # Find the leftmost point
-    leftmost = min(inputSet, key=lambda point: (point[0], point[1]))
-    outputSet = []
-    p = leftmost
-
-    while True:
-        outputSet.append(p)
-        if inputSet[0] != p:
-            q = inputSet[0]
-        else:
-            q = inputSet[1]
-        for r in inputSet:
-            if orientation(p, q, r) == 2:  # If r is more counterclockwise than current q
-                q = r
-        p = q  # q is the most counterclockwise with respect to p
-        if p == leftmost:  # Closed the loop
-            break
-
-    return outputSet
-
-
-def grahamscan(points):
+def grahamscan1(points):
     # Handle cases where there are fewer than three points
     if len(points) < 3:
         # If there are less than three points, return them as they can't form a convex hull
@@ -81,29 +47,119 @@ def grahamscan(points):
 
     return hull
 
+import math
 
-def chen(points):
-    def divideAndConquer(points, m):
-        # Split points into subsets.
-        subsets = [points[i:i + m] for i in range(0, len(points), m)]
-        return [grahamscan(subset) for subset in subsets]
+def grahamscan2(inputSet):
+    """
+    Returns the list of points that lie on the convex hull (graham scan algorithm)
+            Parameters:
+                    inputSet (list): a list of 2D points
 
-    # m represents the number of points in each subset for the divide-and-conquer approach.
-    # The value is based on the logarithm of the total number of input points to balance efficiency.
-    # We use max(3, ...) to ensure m is at least 3 since a convex hull requires at least three points to form a valid shape.
-    m = max(3, int(math.ceil(math.log(len(points), 2))))
-    hulls = divideAndConquer(points, m)
-    # Flatten the list of hulls into a single list of points
-    mergedHulls = []
-    for hull in hulls:  # For each sublist (hull) in the list of lists (hulls)
-        for point in hull:  # For each item (point) in the sublist (hull)
-            mergedHulls.append(point)  # Add the item (point) to the new list (mergedHulls)
-    outputSet = jarvismarch(mergedHulls)
+            Returns:
+                    outputSet (list): a list of 2D points
+    """
+
+    def orientation(p1, p2, p3):
+        # = 0 <- collinear
+        # > 0 <- clockwise
+        # < 0 <- counterclockwise
+        return (p2[1] - p1[1]) * (p3[0] - p2[0]) - (p2[0] - p1[0]) * (p3[1] - p2[1])
+
+    def distanceSquared(p1, p2):
+        return ((p1[0] - p2[0]) ** 2) + ((p1[1] - p2[1]) ** 2)
+
+    n = len(inputSet)
+
+    # Find the lowest coordinate
+    ymin = inputSet[0][1]
+    anchor = 0
+    for i in range(1, n):
+        y = inputSet[i][1]
+        if y < ymin or (ymin == y and inputSet[i][0] < inputSet[anchor][0]):
+            ymin = inputSet[i][1]
+            anchor = i
+
+    # Put the lowest coordinate at the beginning of the set
+    inputSet[0], inputSet[anchor] = inputSet[anchor], inputSet[0]
+
+    # Sort by polar angle
+    lowestPoint = inputSet[0]
+
+    inputSet.sort(key = lambda p: (math.atan2(p[1] - lowestPoint[1], p[0] - lowestPoint[0]), distanceSquared(lowestPoint, p)))
+
+    # for i in range(1, n):
+    #     j = i
+    #     while j > 0 and (math.atan2(inputSet[j][1] - lowestPoint[1], inputSet[j][0] - lowestPoint[0]), distanceSquared(lowestPoint, inputSet[j])) < (math.atan2(inputSet[j - 1][1] - lowestPoint[1], inputSet[j - 1][0] - lowestPoint[0]), distanceSquared(lowestPoint, inputSet[j - 1])):
+    #         inputSet[j], inputSet[j - 1] = inputSet[j - 1], inputSet[j]
+    #         j -= 1
+
+    # Deal with duplicates
+    m = 1
+    for i in range(1, n):
+        while (i < n - 1) and (orientation(lowestPoint, inputSet[i], inputSet[i + 1]) == 0):
+            i += 1
+        inputSet[m] = inputSet[i]
+        m += 1
+
+    # # Convex hull needs at least 3 unique points
+    # if m < 3:
+    #     print("A convex hull needs at least 3 unique points")
+    #     return
+
+    S = []
+    for i in range(3):
+        S.append(inputSet[i])
+
+    # Find the points on the convex hull
+    for i in range(3, m):
+        while len(S) > 1 and orientation(S[-2], S[-1], inputSet[i]) >= 0:
+            S.pop()
+        S.append(inputSet[i])
+
+    outputSet = []
+    while S:
+        p = S[-1]
+        outputSet.append(S.pop())
     return outputSet
 
+def divide_points(inputSet : list[tuple[int,int]], m : int) -> list[list[tuple[int,int]]]:
+        subsets = [inputSet[i:i+m] for i in range(0, len(inputSet), m)]
+        return subsets
 
-import random
-import math
+def chen(inputSet):
+        '''
+        Returns the list of points that lie on the convex hull (chen's algorithm)
+                Parameters:
+                        inputSet (list): a list of 2D points
+        
+                Returns:
+                        outputSet (list): a list of 2D points
+        '''
+        # let m = 3
+        if len(inputSet) < 3:
+                return inputSet
+        m = 3
+        
+        for t in range(m, len(inputSet)):
+            
+            # note that h <= m <= h^2 for all h >= 1 in the algorithm - so we do not perform too many iterations - based on Wikipedia.
+            h = 2 ** (2 ** t)
+            
+            if h > len(inputSet):
+                return grahamscan(inputSet)
+            
+            # Partition the inputset into subsets of size at most m using the divide_points function
+            subsets = divide_points(inputSet, h)
+            # Compute the convex hull of each subset using Graham's scan - store the vertices in an array in counterclockwise order
+            subhulls = [grahamscan(subset) for subset in subsets]
+
+            # Merge the subhulls using Jarvis's march
+            outputSet = jarvismarch([point for subhull in subhulls for point in subhull])
+
+            if len(outputSet) <= h:
+                return outputSet
+            
+        return None
 
 class TestDataGenerator():
     
@@ -184,7 +240,7 @@ chan_times = []
 def get_times(point_range):
     for i in point_range:
         data_generator = TestDataGenerator(i)
-        points = data_generator.random_points()
+        points = data_generator.generate_circle_points()
         jarvis_times.append(time_algorithm(jarvismarch, points))
         graham_times.append(time_algorithm(grahamscan, points))
         chan_times.append(time_algorithm(chen, points))
@@ -200,22 +256,22 @@ def trials(point_range, n):
         for i in range(n):
             data_generator = TestDataGenerator(j)
             points = data_generator.random_points()
-            jarvis_time += time_algorithm(jarvismarch, points)
-            graham_time += time_algorithm(grahamscan, points)
-            chan_time += time_algorithm(chen, points)
+            jarvis_time += time_algorithm(grahamscan1, points)
+            graham_time += time_algorithm(grahamscan2, points)
+            #chan_time += time_algorithm(chen, points)
         jarvis_trials.append(jarvis_time/n)
         graham_trials.append(graham_time/n)
-        chan_trials.append(chan_time/n)
+        #chan_trials.append(chan_time/n)
         
-    return jarvis_trials, graham_trials, chan_trials
+    return jarvis_trials, graham_trials
         
     
-point_range = [i for i in range(100, 10000, 1000)]
-jarvis_trials, graham_trials, chan_trials = trials(point_range, 50)
+point_range = [i for i in range(10,10000,100)]
+jarvis_trials, graham_trials = trials(point_range, 20)
 
-plt.plot(point_range, jarvis_trials, label = "Jarvis March", color = 'red')
-plt.plot(point_range, graham_trials, label = "Graham Scan", color = 'blue')
-plt.plot(point_range, chan_trials, label = "Chan's Algorithm" , color = 'green')
+plt.plot(point_range, jarvis_trials, label = "Graham Scan 1", color = 'red')
+plt.plot(point_range, graham_trials, label = "Graham Scan 2", color = 'blue')
+#plt.plot(point_range, chan_trials, label = "Chan's Algorithm" , color = 'green')
 plt.legend()
 fig = plt.gcf()
 fig.set_size_inches(20.5, 20.5)
